@@ -7,18 +7,20 @@ Cтруктура программы:
 
 3. Распарсить XML, извлечь дату и список валют с курсами.
 
-4. Сохранить данные в структуру.
+4. Обработать полученные за итерацию данные, 
+посчитать минимум и максимум, 
+добавить в сумму значения для подготовки к вычислению матожидания (ср.значения).
 
-5. После сбора всех данных обработать их:
+5. Сохранить данные в структуру.
 
-- Найти максимум и минимум среди всех курсов с указанием валюты и даты.
+6. После сбора всех данных обработать их:
 
 - Посчитать среднее значение всех курсов.
 
-6. Вывести результаты.
+7. Вывести результаты.
 */
 
-use chrono::{Duration, Local, NaiveDate};
+use chrono::{Duration, Local};
 use quick_xml::de::from_str;
 use reqwest::blocking::get;
 use serde::Deserialize;
@@ -40,71 +42,82 @@ struct Valute {
     value: String,
 }
 
-#[derive(Debug)]
 struct CurrencyStats {
     max: (f64, String, String),
     min: (f64, String, String),
-    avg: f64,
+    sum: f64,
+    count: usize,
+}
+
+impl CurrencyStats {
+    fn new() -> Self {
+        Self {
+            max: (f64::MIN, String::new(), String::new()),
+            min: (f64::MAX, String::new(), String::new()),
+            sum: 0.0,
+            count: 0,
+        }
+    }
+
+    fn update(&mut self, value: f64, code: &str, date: &str) {
+        self.sum += value;
+        self.count += 1;
+
+        if value > self.max.0 {
+            self.max = (value, code.to_string(), date.to_string());
+        }
+
+        if value < self.min.0 {
+            self.min = (value, code.to_string(), date.to_string());
+        }
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let end_date = Local::now().date_naive();
     let start_date = end_date - Duration::days(89);
+    let mut stats = CurrencyStats::new();
 
-    let mut all_rates: Vec<(f64, String, String)> = Vec::new();
-    
     for day in 0..90 {
         let date = start_date + Duration::days(day);
         let url = format!(
             "http://www.cbr.ru/scripts/XML_daily_eng.asp?date_req={}",
             date.format("%d/%m/%Y")
         );
-        
-        let response = get(&url)?.text()?;
-        let val_curs: ValCurs = from_str(&response)?;
 
-        for valute in val_curs.valutes {
-            let value: f64 = valute.value.replace(',', ".").parse::<f64>()?;
-            all_rates.push((
-                value,
-                valute.code,
-                val_curs.date.clone(),
-            ));
+        match process_day(&url) {
+            Ok(day_stats) => {
+                for (value, code, date) in day_stats {
+                    stats.update(value, &code, &date);
+                }
+            }
+            Err(e) => eprintln!("Error processing {}: {}", date, e),
         }
     }
 
-    let stats = calculate_stats(&all_rates);
     print_results(stats);
-
     Ok(())
 }
 
-fn calculate_stats(rates: &[(f64, String, String)]) -> CurrencyStats {
-    let mut max = (f64::MIN, String::new(), String::new());
-    let mut min = (f64::MAX, String::new(), String::new());
-    let mut sum: f64 = 0.0;
-
-    for (value, code, date) in rates {
-        sum += value;
-        
-        if *value > max.0 {
-            max = (*value, code.clone(), date.clone());
-        }
-        
-        if *value < min.0 {
-            min = (*value, code.clone(), date.clone());
-        }
-    }
-
-    CurrencyStats {
-        max,
-        min,
-        avg: sum / rates.len() as f64,
-    }
+fn process_day(url: &str) -> Result<Vec<(f64, String, String)>, Box<dyn Error>> {
+    let response = get(url)?.text()?;
+    let val_curs: ValCurs = from_str(&response)?;
+    
+    val_curs.valutes
+        .into_iter()
+        .map(|v| {
+            Ok((
+                v.value.replace(',', ".").parse::<f64>()?,
+                v.code,
+                val_curs.date.clone(),
+            ))
+        })
+        .collect()
 }
 
 fn print_results(stats: CurrencyStats) {
     println!("Maximum rate: {:.4} {} on {}", stats.max.0, stats.max.1, stats.max.2);
     println!("Minimum rate: {:.4} {} on {}", stats.min.0, stats.min.1, stats.min.2);
-    println!("Average rate: {:.4}", stats.avg);
+    println!("Average rate: {:.4}", stats.sum / stats.count as f64);
 }
+
