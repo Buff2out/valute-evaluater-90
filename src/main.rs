@@ -43,23 +43,23 @@ struct Valute {
 }
 
 struct CurrencyStats {
-    max: (f64, String, String),
-    min: (f64, String, String),
-    sum: f64,
+    max: (f32, String, String),
+    min: (f32, String, String),
+    sum: f32,
     count: usize,
 }
 
 impl CurrencyStats {
     fn new() -> Self {
         Self {
-            max: (f64::MIN, String::new(), String::new()),
-            min: (f64::MAX, String::new(), String::new()),
+            max: (f32::MIN, String::new(), String::new()),
+            min: (f32::MAX, String::new(), String::new()),
             sum: 0.0,
             count: 0,
         }
     }
 
-    fn update(&mut self, value: f64, code: &str, date: &str) {
+    fn update(&mut self, value: f32, code: &str, date: &str) {
         self.sum += value;
         self.count += 1;
 
@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn process_day(url: &str) -> Result<Vec<(f64, String, String)>, Box<dyn Error>> {
+fn process_day(url: &str) -> Result<Vec<(f32, String, String)>, Box<dyn Error>> {
     let response = get(url)?.text()?;
     let val_curs: ValCurs = from_str(&response)?;
     
@@ -107,7 +107,7 @@ fn process_day(url: &str) -> Result<Vec<(f64, String, String)>, Box<dyn Error>> 
         .into_iter()
         .map(|v| {
             Ok((
-                v.value.replace(',', ".").parse::<f64>()?,
+                v.value.replace(',', ".").parse::<f32>()?,
                 v.code,
                 val_curs.date.clone(),
             ))
@@ -116,8 +116,8 @@ fn process_day(url: &str) -> Result<Vec<(f64, String, String)>, Box<dyn Error>> 
 }
 
 fn print_results(stats: CurrencyStats) {
-    println!("Maximum rate: {:.4} {} on {}", stats.max.0, stats.max.1, stats.max.2);
-    println!("Minimum rate: {:.4} {} on {}", stats.min.0, stats.min.1, stats.min.2);
-    println!("Average rate: {:.4}", stats.sum / stats.count as f64);
+    println!("Значение максимального курса валюты:       {:.3} {} дата:  {}", stats.max.0, stats.max.1, stats.max.2);
+    println!("Значение минимального курса валюты:          {:.3} {} дата:  {}", stats.min.0, stats.min.1, stats.min.2);
+    println!("Математическое ожидание (среднее значение): {:.3}", stats.sum / stats.count as f32);
 }
 
