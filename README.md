@@ -90,7 +90,7 @@ serde = { version = "1.0", features = ["derive"] }
 #### Копируем код
 
 Далее копируем из  
-https://github.com/Buff2out/valute-evaluater-90/src/main.rs  
+https://github.com/Buff2out/valute-evaluater-90/blob/master/src/main.rs
 в  
 `./src/main.rs` 
 
